@@ -134,16 +134,11 @@ def toggle_strip_off(request: Request):
     # Turn off All 240 LEDS
     return JSONResponse(request, {"status": "Off"})
 
-@server.route("/strip/toggle", POST)
+@server.route("/strip/toggle/on")
 def toggle_strip(request: Requst):
-    # Toggle off all LEDs First
+    # Toggle on all LEDs First
 
-    #Amount of LEDs to turn on
-    amount = request.form_data.get('amount')
-    #Color to set LEDs
-    color = request.form_data.get('color')
-
-    return JSONResponse(request, {"status", "Changed " + amount + " of LED(s) to " + color})
+    return JSONResponse(request, {"status", "On"})
     
     
         
