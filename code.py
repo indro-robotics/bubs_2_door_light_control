@@ -3,7 +3,7 @@ import digitalio
 import wifi
 import socketpool
 import json
-from adafruit_httpserver import Server, Request, JSONResponse
+from adafruit_httpserver import Server, Request, JSONResponse, POST
 
 # Set up lock
 lock = digitalio.DigitalInOut(board.D13) #LED to test onboard LED
@@ -129,6 +129,23 @@ def toggle_light4(request: Request):
 
     return JSONResponse(request, {"status": status})
 
+@server.route("/strip/toggle/off")
+def toggle_strip_off(request: Request):
+    # Turn off All 240 LEDS
+    return JSONResponse(request, {"status": "Off"})
+
+@server.route("/strip/toggle", POST)
+def toggle_strip(request: Requst):
+    # Toggle off all LEDs First
+
+    #Amount of LEDs to turn on
+    amount = request.form_data.get('amount')
+    #Color to set LEDs
+    color = request.form_data.get('color')
+
+    return JSONResponse(request, {"status", "Changed " + amount + " of LED(s) to " + color})
+    
+    
         
 print(f"Starting server on http://{wifi.radio.ipv4_address}:9090")
 server.serve_forever(port=9090)
