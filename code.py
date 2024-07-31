@@ -42,15 +42,15 @@ def base(request: Request):
 @server.route("/door/status")
 def lock_status(request: Request):
     status = "Locked" if lock.value else "Unlocked"
-    print ("/status")
-    print (lock.value)
+
+
     return JSONResponse(request, {"status": status})
 
 #this returns door position by reading limit switch on pin A1
 @server.route("/door/position")
 def lock_status(request: Request):
     status = "Closed" if door_position.value else "Open"
-    print ("/door_position")
+
     return JSONResponse(request, {"status": status})
     
 #this returns door position by reading limit switch on pin A1
@@ -61,10 +61,10 @@ def light_status(request: Request):
     status_light_3 = "On" if light_3.value else "Off"
     status_light_4 = "On" if light_4.value else "Off"
     return JSONResponse(request, {
-        "light_1": status_light_1,
-        "light_2": status_light_2,
-        "light_3": status_light_3,
-        "light_4": status_light_4
+        "rear": status_light_1,
+        "front": status_light_2,
+        "right": status_light_3,
+        "left": status_light_4
     })
 
 #this triggers lock and returns value
@@ -72,39 +72,61 @@ def light_status(request: Request):
 def toggle_led(request: Request):
     lock.value = not lock.value
     status = "Locked" if lock.value else "Unlocked"
-    print ("/toggle")
+
     return JSONResponse(request, {"status": status})
 
 #this triggers light and returns value
-@server.route("/light/toggle/1")
+@server.route("/light/toggle/on")
+def toggle_light1(request: Request):
+    light_1.value = True
+    light_2.value = True
+    light_3.value = True
+    light_4.value = True
+    status = "On"
+
+    return JSONResponse(request, {"status": status})
+
+@server.route("/light/toggle/off")
+def toggle_light1(request: Request):
+    light_1.value = False
+    light_2.value = False
+    light_3.value = False
+    light_4.value = False
+    status = "Off"
+
+    return JSONResponse(request, {"status": status})
+    
+
+#this triggers light and returns value
+@server.route("/light/toggle/rear")
 def toggle_light1(request: Request):
     light_1.value = not light_1.value
     status = "On" if light_1.value else "Off"
-    print ("/light1")
+
     return JSONResponse(request, {"status": status})
     
 #this triggers light and returns value
-@server.route("/light/toggle/2")
+@server.route("/light/toggle/front")
 def toggle_light2(request: Request):
     light_2.value = not light_2.value
     status = "On" if light_2.value else "Off"
-    print ("/light2")
+
     return JSONResponse(request, {"status": status})
     
 #this triggers light and returns value
-@server.route("/light/toggle/3")
+@server.route("/light/toggle/right")
 def toggle_light3(request: Request):
     light_3.value = not light_3.value
     status = "On" if light_3.value else "Off"
-    print ("/light3")
+   
     return JSONResponse(request, {"status": status})
     
 #this triggers light and returns value
-@server.route("/light/toggle/4")
+@server.route("/light/toggle/left")
 def toggle_light4(request: Request):
     light_4.value = not light_4.value
     status = "On" if lock.value else "Off"
-    print ("/light4")
+
     return JSONResponse(request, {"status": status})
 
         
