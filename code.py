@@ -36,6 +36,24 @@ light_4.direction = digitalio.Direction.OUTPUT
 door_position = digitalio.DigitalInOut(board.A2)
 door_position.direction = digitalio.Direction.INPUT
 
+WIFI_SSID = 'BUBS-2'
+WIFI_PASSWORD = '12345678'
+
+def connect_to_wifi():
+    print("Connecting...")
+    wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+    
+    while not wifi.radio.ipv4_address:
+        print('Attempting Reconnect...')
+        wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+        time.sleep(2)
+
+    print(wifi.radio.ipv4_address)
+    return True
+
+
+connect_to_wifi()
+
 # Set up the web server
 pool = socketpool.SocketPool(wifi.radio)
 server = Server(pool, debug=True)
@@ -154,7 +172,7 @@ def toggle_strip(request: Requst):
     pixels.show()
     # Toggle on all LEDs First
 
-    return JSONResponse(request, {"status", "On"})
+    return JSONResponse(request, {"status": "On"})
     
     
         
