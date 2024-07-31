@@ -41,6 +41,9 @@ WIFI_PASSWORD = '12345678'
 
 def connect_to_wifi():
     print("Connecting...")
+    pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
+    pixels.fill(0x00ff00)
+    pixels.show()
     #wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
     
     while not wifi.radio.ipv4_address:
@@ -50,6 +53,8 @@ def connect_to_wifi():
         except Exception as e:
             print(e)
         time.sleep(2)
+    pixels.fill(0x000000)
+    pixels.show()    
 
     print(wifi.radio.ipv4_address)
     return True
@@ -179,5 +184,5 @@ def toggle_strip(request: Requst):
     
     
         
-print(f"Starting server on http://{wifi.radio.ipv4_address}:9090")
-server.serve_forever(port=9090)
+print(f"Starting server on http://{wifi.radio.ipv4_address}:9999")
+server.serve_forever(port=9999)
