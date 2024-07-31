@@ -41,11 +41,14 @@ WIFI_PASSWORD = '12345678'
 
 def connect_to_wifi():
     print("Connecting...")
-    wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+    #wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
     
     while not wifi.radio.ipv4_address:
         print('Attempting Reconnect...')
-        wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+        try:
+            wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+        except Exception as e:
+            print(e)
         time.sleep(2)
 
     print(wifi.radio.ipv4_address)
