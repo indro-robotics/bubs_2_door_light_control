@@ -3,7 +3,15 @@ import digitalio
 import wifi
 import socketpool
 import json
+import time
 from adafruit_httpserver import Server, Request, JSONResponse, POST
+from rainbowio import colorwheel
+from adafruit_seesaw import seesaw, neopixel
+
+#setup stemma-qt
+i2c = board.STEMMA_I2C()
+ss = seesaw.Seesaw(i2c, addr=0x60)
+neo_pin = 15
 
 # Set up lock
 lock = digitalio.DigitalInOut(board.D13) #LED to test onboard LED
@@ -131,11 +139,19 @@ def toggle_light4(request: Request):
 
 @server.route("/strip/toggle/off")
 def toggle_strip_off(request: Request):
+    num_pixels = 240 
+    pixels = neopixel.NeoPixel(ss, neo_pin, num_pixels, brightness=0.0, auto_write=False, pixel_order=neopixel.RGBW)
+    pixels.fill(0x000000)
+    pixels.show()
     # Turn off All 240 LEDS
     return JSONResponse(request, {"status": "Off"})
 
 @server.route("/strip/toggle/on")
 def toggle_strip(request: Requst):
+    num_pixels = 240 
+    pixels = neopixel.NeoPixel(ss, neo_pin, num_pixels, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
+    pixels.fill(0xffffff)
+    pixels.show()
     # Toggle on all LEDs First
 
     return JSONResponse(request, {"status", "On"})
