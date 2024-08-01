@@ -8,10 +8,11 @@ import time
 from adafruit_httpserver import Server, Request, JSONResponse, POST
 from rainbowio import colorwheel
 from adafruit_seesaw import seesaw, neopixel
+import re
 
 #setup stemma-qt
-# i2c = board.STEMMA_I2C()
-# ss = seesaw.Seesaw(i2c, addr=0x60)
+i2c = board.STEMMA_I2C()
+ss = seesaw.Seesaw(i2c, addr=0x60)
 neo_pin = 15
 
 # Set up lock
@@ -40,15 +41,18 @@ door_position.direction = digitalio.Direction.INPUT
 WIFI_SSID = 'BUBS-2'
 WIFI_PASSWORD = '12345678'
 
+LED_SECTION_MULTIPLIER = 13;
+MAX_LED_SECTIONS = 10;
+
 def connect_to_wifi():
     print("Connecting...")
-    # pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=0.0, auto_write=False, pixel_order=neopixel.RGBW)
-    # pixels.fill(0x000000)
-    # pixels.show()
-    # pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
-    # pixels.fill(0x00ff00)
-    # pixels.show()
-    #wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
+    pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=0.0, auto_write=False, pixel_order=neopixel.RGBW)
+    pixels.fill(0x000000)
+    pixels.show()
+    pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
+    pixels.fill(0x00ff00)
+    pixels.show()
+    # wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
     
     while not wifi.radio.ipv4_address:
         print('Attempting Reconnect...')
@@ -57,8 +61,8 @@ def connect_to_wifi():
         except Exception as e:
             print(e)
         time.sleep(2)
-    # pixels.fill(0x000000)
-    # pixels.show()    
+    pixels.fill(0x000000)
+    pixels.show()    
 
     print(wifi.radio.ipv4_address)
     return True
@@ -179,7 +183,7 @@ def toggle_strip_off(request: Request):
     return JSONResponse(request, {"status": "Off"})
 
 @server.route("/strip/toggle/on")
-def toggle_strip(request: Requst):
+def toggle_strip(request: Request):
     num_pixels = 240 
     pixels = neopixel.NeoPixel(ss, neo_pin, num_pixels, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
     pixels.fill(0xffffff)
@@ -187,6 +191,52 @@ def toggle_strip(request: Requst):
     # Toggle on all LEDs First
 
     return JSONResponse(request, {"status": "On"})
+    
+@server.route("/strip/toggle/section", POST):
+def toggle_section(request: Request):
+    pattern = r'^[A-Fa-f0-9]{6}$'
+
+    section = request.form_data.get('section')
+    color = request.form_data.get('color')
+    blink = request.form_data.get('blink')
+    brightness = request.form_data.get('brightness')
+    try:
+        brightness = float(brightness)
+    except Exception as e:
+        return JSONResponse(request, {"error": "Brightness is not a valid float"}, status=400)
+    if brightness > 1.0 or brightness < 0.0:
+        return JSONRespnse(request, {"error": "Brightness value must be between 0.0 and 1.0"}, status=400)
+    try:
+        section = int(section)
+    except Exception as e:
+         return JSONResponse(request, {"error": "Section is not a valid integer"}, status=400)
+     if blink == 'True' or blink == 'true':
+         blink = True
+     elif blink == 'False' or blink == 'false':
+         blink = False
+     else:
+         return JSONResponse(request, {"error": "Blink is not a valid bool (True/False)"}, status=400)
+    
+    if blink:
+        blinking_speed = request.form_data.get('blinking_speed')
+        try:
+            blinking_speed = int(blinking_speed)
+        except Exception as e:
+             return JSONResponse(request, {"error": "Blinking speed is not a valid integer for seconds"}, status=400)
+    if section > 9 || section < 0:
+        return JSONResponse(request, {"error": "Section does not exist"}, status=400)
+    if !bool(re.match(pattern, color))
+        return JSONResponse(request, {"error": "Not a valid Hexcode colour (RRGGBB)"}, status=400)
+    color = '0x'+color
+
+    pixels = neopixel.NeoPixel(ss, neo_pin, brightness=brightness, auto_write=False, pixel_order=neopixel.RGBW)
+
+    starting_pixel = (section+1)*LED_SECTION_MULTIPLIER)
+    ending_pixel = starting_pixel+13
+    for x in range(starting_pixel, ending_pixel):
+        pixels[x] = color
+    pixels.show()
+
     
     
         
