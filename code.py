@@ -1,5 +1,6 @@
 import board
 import digitalio
+import analogio
 import wifi
 import socketpool
 import json
@@ -9,8 +10,8 @@ from rainbowio import colorwheel
 from adafruit_seesaw import seesaw, neopixel
 
 #setup stemma-qt
-i2c = board.STEMMA_I2C()
-ss = seesaw.Seesaw(i2c, addr=0x60)
+# i2c = board.STEMMA_I2C()
+# ss = seesaw.Seesaw(i2c, addr=0x60)
 neo_pin = 15
 
 # Set up lock
@@ -33,7 +34,7 @@ light_3.direction = digitalio.Direction.OUTPUT
 light_4 = digitalio.DigitalInOut(board.D27)
 light_4.direction = digitalio.Direction.OUTPUT
 
-door_position = digitalio.DigitalInOut(board.A2)
+door_position = digitalio.DigitalInOut(board.D32)
 door_position.direction = digitalio.Direction.INPUT
 
 WIFI_SSID = 'BUBS-2'
@@ -41,9 +42,12 @@ WIFI_PASSWORD = '12345678'
 
 def connect_to_wifi():
     print("Connecting...")
-    pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
-    pixels.fill(0x00ff00)
-    pixels.show()
+    # pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=0.0, auto_write=False, pixel_order=neopixel.RGBW)
+    # pixels.fill(0x000000)
+    # pixels.show()
+    # pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
+    # pixels.fill(0x00ff00)
+    # pixels.show()
     #wifi.radio.connect(WIFI_SSID, WIFI_PASSWORD)
     
     while not wifi.radio.ipv4_address:
@@ -53,8 +57,8 @@ def connect_to_wifi():
         except Exception as e:
             print(e)
         time.sleep(2)
-    pixels.fill(0x000000)
-    pixels.show()    
+    # pixels.fill(0x000000)
+    # pixels.show()    
 
     print(wifi.radio.ipv4_address)
     return True
@@ -83,6 +87,8 @@ def lock_status(request: Request):
 #this returns door position by reading limit switch on pin A1
 @server.route("/door/position")
 def lock_status(request: Request):
+    
+    print(door_position.value)
     status = "Closed" if door_position.value else "Open"
 
     return JSONResponse(request, {"status": status})
