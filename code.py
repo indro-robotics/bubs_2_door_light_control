@@ -9,43 +9,34 @@ from adafruit_httpserver import Server, Request, JSONResponse, POST
 from rainbowio import colorwheel
 from adafruit_seesaw import seesaw, neopixel
 import re
+import busio
+import asyncio
 
-#setup stemma-qt
+# Initialize I2C bus
+i2c = busio.I2C(board.SCL, board.SDA, frequency=100000)
 
+print("I2C object created")
+time.sleep(1)
 
-# Define the I2C bus
-i2c = board.STEMMA_I2C()
-
-# Define the expected I2C address of your STEMMA board
-STEMMA_ADDRESS = 0x60  # Replace with the correct address if different
-
-def scan_for_device(address):
-    while True:
-        try:
-            i2c.try_lock()
-            devices = i2c.scan()
-            i2c.unlock()
-            if address in devices:
-                print(f"Device found at address 0x{address:02X}")
-                return True
-            else:
-                print("Device not found. Retrying...")
-                time.sleep(1)  # Wait for 1 second before retrying
-        except Exception as e:
-            print(f"Error during scan: {e}")
-            time.sleep(1)  # Wait for 1 second before retrying
-
-# Scan for the STEMMA board
-print("Scanning for STEMMA board...")
-if scan_for_device(STEMMA_ADDRESS):
-    print("STEMMA board detected. Proceeding with initialization...")
-    # Your initialization code here, e.g.:
-    # ss = seesaw.Seesaw(i2c, addr=STEMMA_ADDRESS)
+print("Attempting to lock I2C bus...")
+if i2c.try_lock():
+    print("I2C bus locked successfully")
+    try:
+        print("Scanning I2C bus...")
+        print("I2C addresses found:", [hex(device_address) for device_address in i2c.scan()])
+        
+        print("Attempting to initialize Seesaw...")
+        i2c.unlock()
+        ss = seesaw.Seesaw(i2c, addr=0x60)
+        print("Seesaw initialized successfully")
+    except OSError as e:
+        print("Failed to initialize Seesaw:", e)
 else:
-    print("Failed to detect STEMMA board")
-i2c = board.STEMMA_I2C()
+    print("Failed to lock I2C bus")
 
-ss = seesaw.Seesaw(i2c, addr=0x60)
+print("Script completed")
+
+
 neo_pin = 15
 
 # Set up lock
@@ -208,8 +199,12 @@ def toggle_light4(request: Request):
 def toggle_strip_off(request: Request):
     num_pixels = 240 
     pixels = neopixel.NeoPixel(ss, neo_pin, num_pixels, brightness=0.0, auto_write=False, pixel_order=neopixel.RGBW)
-    pixels.fill(0x000000)
-    pixels.show()
+
+    for section in LED_SECTIONS:
+        rgb_color = hex_to_rgb('000000')
+        LED_SECTIONS[section]['blinking'] = False
+        LED_SECTIONS[section]["color"] = rgb_color
+        LED_SECTIONS[section]["color_set"] = False
     # Turn off All 240 LEDS
     return JSONResponse(request, {"status": "Off"})
 
@@ -217,76 +212,203 @@ def toggle_strip_off(request: Request):
 def toggle_strip(request: Request):
     num_pixels = 240 
     pixels = neopixel.NeoPixel(ss, neo_pin, num_pixels, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
-    pixels.fill(0xffffff)
-    pixels.show()
+    for section in LED_SECTIONS:
+        rgb_color = hex_to_rgb('ffffff')
+        LED_SECTIONS[section]['blinking'] = False
+        LED_SECTIONS[section]["color"] = rgb_color
+        LED_SECTIONS[section]["color_set"] = False
     # Toggle on all LEDs First
 
     return JSONResponse(request, {"status": "On"})
     
-@server.route("/strip/toggle/section", POST)
-def toggle_section(request: Request):
-    def is_valid_rgb_hex(value):
-        # Define the pattern for a 6-digit hexadecimal color code
-        values_since_regex_wont_work = set('abcdefABCDEF0123456789')
-    
-        # Check if the input is None or not exactly 6 characters long
-        if value is None or len(value) != 6:
-            return False
-        
-        # Check each character in the input string
-        for letter in value:
-            if letter not in values_since_regex_wont_work:
-                return False
-        
-        return True
+LED_SECTIONS = {
+    0: {"start": 0, "end": 13, "color": None, "blinking": False},
+    1: {"start": 13, "end": 26, "color": None, "blinking": False},
+    2: {"start": 26, "end": 39, "color": None, "blinking": False},
+    3: {"start": 39, "end": 52, "color": None, "blinking": False},
+    4: {"start": 52, "end": 65, "color": None, "blinking": False},
+    5: {"start": 65, "end": 78, "color": None, "blinking": False},
+    6: {"start": 78, "end": 91, "color": None, "blinking": False},
+    7: {"start": 91, "end": 104, "color": None, "blinking": False},
+    8: {"start": 104, "end": 117, "color": None, "blinking": False},
+    9: {"start": 117, "end": 130, "color": None, "blinking": False},
+}
 
-    section = request.form_data.get('section')
-    color = str(request.form_data.get('color'))
-    blink = request.form_data.get('blink')
-    brightness = request.form_data.get('brightness')
-    print(section, color, blink, brightness)
+last_blink_time = 0.0
+blink_state = False
+
+pixels = neopixel.NeoPixel(ss, neo_pin, 240, brightness=1.0, auto_write=False, pixel_order=neopixel.RGBW)
+
+def is_valid_rgb_hex(value):
+    values_since_regex_wont_work = set("abcdefABCDEF0123456789")
+    return value is not None and len(value) == 6 and all(letter in values_since_regex_wont_work for letter in value)
+
+def hex_to_rgb(hex_value):
+    # Parse the hex string into three 2-digit hex values
+    r = int(hex_value[:2], 16)
+    g = int(hex_value[2:4], 16)
+    b = int(hex_value[4:], 16)
+    
+    return (g, r, b)  # Return in GRB order for NeoPixel
+
+def set_color(start, end, color):
+    pixels[start:end] = [color] * (end - start)
+
+def update_leds():
+    global last_blink_time, blink_state
+    current_time = time.monotonic()
+    changed = False
+    if current_time - last_blink_time >= 1:  # Assuming a 1-second blink interval
+        last_blink_time = current_time
+        blink_state = not blink_state
+        for section, data in LED_SECTIONS.items():
+            if data["blinking"] and data["color"] is not None:
+                color = data["color"] if blink_state else (0, 0, 0)
+                set_color(data['start'], data['end'], color)
+                changed = True
+            elif data["color"] is not None and not data.get("color_set", False):
+                set_color(data['start'], data['end'], data["color"])
+                data["color_set"] = True
+                changed = True
+    if changed:
+        pixels.show()
+
+@server.route("/strip/toggle/section", "POST")
+def toggle_section(request: Request):
+    section = request.form_data.get("section")
+    color = str(request.form_data.get("color"))
+    blink = request.form_data.get("blink")
+    brightness = request.form_data.get("brightness")
+
+    try:
+        brightness = float(brightness)
+        if not 0 <= brightness <= 1:
+            raise ValueError
+    except:
+        return JSONResponse(request, {"error": "Invalid brightness value"}, status=[400, "400"])
+
+    try:
+        section = int(section)
+        if section not in LED_SECTIONS:
+            raise ValueError
+    except:
+        return JSONResponse(request, {"error": "Invalid section"}, status=[400, "400"])
+
+    
+    blink = blink.lower() == "true"
+
+    if not is_valid_rgb_hex(color):
+        return JSONResponse(request, {"error": "Invalid color format"}, status=[400, "400"])
+
+    rgb_color = hex_to_rgb(color)
+    pixels.brightness = brightness
+
+    LED_SECTIONS[section]['blinking'] = False
+    LED_SECTIONS[section]["color"] = rgb_color
+    LED_SECTIONS[section]["color_set"] = False
+
+
+    return JSONResponse(request, {"status": "success"})
+
+
+
+def toggle_corner_leds(section, color, brightness, blinking_speed, blink):
     try:
         brightness = float(brightness)
     except Exception as e:
-        return JSONResponse(request, {"error": "Brightness is not a valid float"},  status=[400, '400'])
-    if brightness > 1.0 or brightness < 0.0:
-        return JSONRespnse(request, {"error": "Brightness value must be between 0.0 and 1.0"},  status=[400, '400'])
+        return 400, {'error': 'Brightness value must be an Integer/Float'}
+    if brightness > 1 or brightness < 0:
+        return 400, {'error': 'Brightness value must be between 0.0 and 1.0'}
     try:
-        section = int(section)
+        blinking_speed = int(blinking_speed)
     except Exception as e:
-         return JSONResponse(request, {"error": "Section is not a valid integer"},  status=[400, '400'])
-    if blink == 'True' or blink == 'true':
+        return 400, {'error': 'Blinking speed must be an integer'}
+
+    if not is_valid_rgb_hex(color):
+        return 400, {"error": "Invalid color format"}
+    if blink.lower() == 'true':
         blink = True
-    elif blink == 'False' or blink == 'false':
+    elif blink.lower() == 'false':
         blink = False
     else:
-        return JSONResponse(request, {"error": "Blink is not a valid bool (True/False)"},  status=[400, '400'])
-    
-    if blink:
-        blinking_speed = request.form_data.get('blinking_speed')
-        try:
-            blinking_speed = int(blinking_speed)
-        except Exception as e:
-             return JSONResponse(request, {"error": "Blinking speed is not a valid integer for seconds"},  status=[400, '400'])
-    if section > 9 or section < 0:
-        return JSONResponse(request, {"error": "Section does not exist"},  status=[400, '400'])
-        
-    result = is_valid_rgb_hex(color)
-    print(result)
-    if result == False:
-        return JSONResponse(request, {"error": "Not a valid Hexcode colour (RRGGBB)"}, status=[400, '400'])
-    color = '0x'+color
+        return 400, {"error": "Blink must be True/False"}
 
-    pixels = neopixel.NeoPixel(ss, neo_pin, brightness=brightness, auto_write=False, pixel_order=neopixel.RGBW)
+    rgb_color = hex_to_rgb(color)
+    pixels.brightness = brightness
 
-    starting_pixel = (section+1)*LED_SECTION_MULTIPLIER
-    ending_pixel = starting_pixel+13
-    for x in range(starting_pixel, ending_pixel):
-        pixels[x] = color
-    pixels.show()
+    LED_SECTIONS[section]['blinking'] = blink
+    LED_SECTIONS[section]["color"] = rgb_color
+    LED_SECTIONS[section]["color_set"] = False
+
+    if blink == False:
+        rgb_color = hex_to_rgb('000000')
+        LED_SECTIONS[4]["color"] = rgb_color
+    
+    return 200, {"status": "Success"}
+    
+@server.route("/strip/toggle/left/rear", "POST")
+def toggle_strip_left_rear(request: Request):
+    color = str(request.form_data.get("color"))
+    brightness = request.form_data.get("brightness")
+    blinking_speed = request.form_data.get("blinking_speed")
+    blink = request.form_data.get('blink')
+    
+    status_code, response_data = toggle_corner_leds(4, color, brightness, blinking_speed, blink)
+    return JSONResponse(request, response_data, status=[status_code, str(status_code)])
 
     
+
+
+@server.route("/strip/toggle/left/front", 'POST')
+def toggle_strip_left_front(request: Request):
+    color = str(request.form_data.get("color"))
+    brightness = request.form_data.get("brightness")
+    blinking_speed = request.form_data.get("blinking_speed")
+    blink = request.form_data.get('blink')
     
-        
-print(f"Starting server on http://{wifi.radio.ipv4_address}:9999")
-server.serve_forever(port=9999)
+    status_code, response_data = toggle_corner_leds(0, color, brightness, blinking_speed, blink)
+    return JSONResponse(request, response_data, status=[status_code, str(status_code)])
+    
+
+
+@server.route("/strip/toggle/right/rear", 'POST')
+def toggle_strip_right_rear(request: Request):
+    color = str(request.form_data.get("color"))
+    brightness = request.form_data.get("brightness")
+    blinking_speed = request.form_data.get("blinking_speed")
+    blink = request.form_data.get('blink')
+    
+    status_code, response_data = toggle_corner_leds(5, color, brightness, blinking_speed, blink)
+    return JSONResponse(request, response_data, status=[status_code, str(status_code)])
+    
+
+@server.route("/strip/toggle/right/front", 'POST')
+def toggle_strip_right_front(request: Request):
+    color = str(request.form_data.get("color"))
+    brightness = request.form_data.get("brightness")
+    blinking_speed = request.form_data.get("blinking_speed")
+    blink = request.form_data.get('blink')
+    
+    status_code, response_data = toggle_corner_leds(9, color, brightness, blinking_speed, blink)
+    return JSONResponse(request, response_data, status=[status_code, str(status_code)])
+    
+
+
+'''
+Try/Catch are used to catch server errors without shutting down the entire server in the event of an issue
+'''
+try:
+    print("Starting server on port 9999...")
+    server.start(port=9999)
+    last_update_time = time.monotonic()
+    while True:
+        server.poll()
+        current_time = time.monotonic()
+        if current_time - last_update_time >= 0.05:  # Update LEDs every 50ms
+            update_leds()
+            last_update_time = current_time
+except Exception as e:
+    print(f"An error occurred: {e}")
+finally:
+    server.stop()
+    print("Server stopped.")
